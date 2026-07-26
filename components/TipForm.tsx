@@ -100,7 +100,7 @@ export function TipForm({
     return (
       <div style={{ marginTop: 24 }}>
         <p>Tip sent to {recipientLabel}.</p>
-        
+        <a
           href={`${activeChain.blockExplorers?.default.url}/tx/${txHash}`}
           target="_blank"
           rel="noreferrer"
