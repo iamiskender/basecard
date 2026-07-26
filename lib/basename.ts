@@ -10,9 +10,14 @@ import { activeChain } from "@/lib/wagmi";
 // CCIP-reads from Base's L2 registry under the hood) — this does not
 // depend on any Coinbase-operated API and so isn't subject to that
 // API's own rate limits. See: https://docs.base.org/base-account/basenames
+//
+// viem's default mainnet RPC endpoint has been observed to reject
+// requests outright (HTTP 403), which silently broke resolution for
+// every name, not just flaky ones. Using an explicit, well-known public
+// RPC instead of the library default.
 const mainnetClient = createPublicClient({
   chain: mainnet,
-  transport: http(),
+  transport: http("https://ethereum.publicnode.com"),
 });
 
 async function resolveViaEns(name: string): Promise<`0x${string}` | null> {
