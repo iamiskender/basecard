@@ -18,7 +18,8 @@ const mainnetClient = createPublicClient({
 async function resolveViaEns(name: string): Promise<`0x${string}` | null> {
   try {
     return await mainnetClient.getEnsAddress({ name: normalize(name) });
-  } catch {
+  } catch (error) {
+    console.error(`[resolveViaEns] failed for "${name}":`, error);
     return null;
   }
 }
@@ -28,7 +29,8 @@ async function resolveViaOnchainKit(
 ): Promise<`0x${string}` | null> {
   try {
     return await getAddressOnchainKit({ name, chain: activeChain });
-  } catch {
+  } catch (error) {
+    console.error(`[resolveViaOnchainKit] failed for "${name}":`, error);
     return null;
   }
 }
