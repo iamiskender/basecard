@@ -14,6 +14,10 @@ import { tipJarAbi, TIP_JAR_ADDRESS } from "@/lib/contract";
 import { getDataSuffix } from "@/lib/builderCode";
 import { activeChain } from "@/lib/wagmi";
 
+// The contract caps the message at 140 BYTES. Counting characters here would
+// let a Turkish or emoji message through the UI and revert onchain.
+const MAX_MESSAGE_BYTES = 140;
+
 export function TipForm({
   recipient,
   recipientLabel,
@@ -40,14 +44,13 @@ export function TipForm({
     useWaitForTransactionReceipt({ hash: txHash });
 
   const wrongChain = isConnected && chainId !== activeChain.id;
+  const messageBytes = new TextEncoder().encode(message).length;
+  const messageTooLong = messageBytes > MAX_MESSAGE_BYTES;
+  const amountValid = Number(amount) > 0;
 
   function handleTip(e: React.FormEvent) {
     e.preventDefault();
-    if (!TIP_JAR_ADDRESS) {
-      alert("TipJar contract address is not configured (NEXT_PUBLIC_TIP_JAR_ADDRESS).");
-      return;
-    }
-    if (wrongChain) return;
+    if (!TIP_JAR_ADDRESS || wrongChain || messageTooLong || !amountValid) return;
 
     const callData = encodeFunctionData({
       abi: tipJarAbi,
@@ -65,30 +68,47 @@ export function TipForm({
     });
   }
 
+  if (!TIP_JAR_ADDRESS) {
+    return (
+      <div className="card">
+        <p className="status-text">
+          No TipJar address is configured. Set{" "}
+          <code>NEXT_PUBLIC_TIP_JAR_ADDRESS</code> and reload.
+        </p>
+      </div>
+    );
+  }
+
   if (!isConnected) {
     return (
-      <div style={{ marginTop: 24 }}>
-        {connectors.map((connector) => (
-          <button
-            key={connector.uid}
-            onClick={() => connect({ connector })}
-            disabled={isConnecting}
-            style={{ marginRight: 8, padding: "10px 16px", borderRadius: 8 }}
-          >
-            Connect {connector.name}
-          </button>
-        ))}
+      <div className="card">
+        <span className="field-label">Connect a wallet</span>
+        <div className="btn-grid">
+          {connectors.map((connector) => (
+            <button
+              key={connector.uid}
+              onClick={() => connect({ connector })}
+              disabled={isConnecting}
+              className="btn btn-secondary"
+            >
+              {connector.name}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
 
   if (wrongChain) {
     return (
-      <div style={{ marginTop: 24 }}>
-        <p>Wrong network. Basecard runs on {activeChain.name}.</p>
+      <div className="card">
+        <p className="status-text" style={{ marginTop: 0 }}>
+          Wrong network. Basecard runs on {activeChain.name}.
+        </p>
         <button
           onClick={() => switchChain({ chainId: activeChain.id })}
-          style={{ padding: "10px 16px", borderRadius: 8 }}
+          className="btn btn-primary"
+          style={{ width: "100%", marginTop: 16 }}
         >
           Switch to {activeChain.name}
         </button>
@@ -98,8 +118,10 @@ export function TipForm({
 
   if (isConfirmed) {
     return (
-      <div style={{ marginTop: 24 }}>
-        <p>Tip sent to {recipientLabel}.</p>
+      <div className="card">
+        <p className="status-success" style={{ margin: "0 0 12px" }}>
+          Tip sent to {recipientLabel}.
+        </p>
         <a
           href={`${activeChain.blockExplorers?.default.url}/tx/${txHash}`}
           target="_blank"
@@ -112,52 +134,68 @@ export function TipForm({
   }
 
   return (
-    <form onSubmit={handleTip} style={{ marginTop: 24 }}>
-      <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 8 }}>
-        Connected as {address?.slice(0, 6)}...{address?.slice(-4)}{" "}
-        <button
-          type="button"
-          onClick={() => disconnect()}
-          style={{ marginLeft: 8, background: "none", border: "none", color: "#4f7cff" }}
-        >
+    <form onSubmit={handleTip} className="card">
+      <div className="connected-row">
+        <span>
+          {address?.slice(0, 6)}...{address?.slice(-4)}
+        </span>
+        <button type="button" onClick={() => disconnect()} className="btn-link">
           disconnect
         </button>
       </div>
 
-      <label style={{ display: "block", marginBottom: 8 }}>
+      <label className="field-label" htmlFor="amount">
         Amount (ETH)
-        <input
-          type="number"
-          step="0.0001"
-          min="0"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          style={{ display: "block", width: "100%", padding: 10, marginTop: 4, borderRadius: 8, border: "1px solid #333" }}
-        />
       </label>
+      <input
+        id="amount"
+        type="number"
+        step="0.0001"
+        min="0"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        className="text-input"
+        style={{ width: "100%", marginBottom: 20 }}
+      />
 
-      <label style={{ display: "block", marginBottom: 8 }}>
+      <label className="field-label" htmlFor="message">
         Message (optional)
-        <input
-          type="text"
-          maxLength={140}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="great work on this!"
-          style={{ display: "block", width: "100%", padding: 10, marginTop: 4, borderRadius: 8, border: "1px solid #333" }}
-        />
       </label>
+      <input
+        id="message"
+        type="text"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="great work on this!"
+        className="text-input"
+        style={{ width: "100%" }}
+      />
+      <div
+        className="status-text"
+        style={{
+          fontSize: 12,
+          marginTop: 6,
+          marginBottom: 20,
+          color: messageTooLong ? "var(--danger)" : "var(--text-muted)",
+        }}
+      >
+        {messageBytes} / {MAX_MESSAGE_BYTES} bytes
+        {messageTooLong && " — too long for the contract"}
+      </div>
 
       <button
         type="submit"
-        disabled={isSending || isConfirming}
-        style={{ padding: "12px 20px", borderRadius: 8, width: "100%" }}
+        disabled={isSending || isConfirming || messageTooLong || !amountValid}
+        className="btn btn-primary"
+        style={{ width: "100%" }}
       >
-        {isSending || isConfirming ? "Sending..." : `Tip ${recipientLabel}`}
+        {isSending || isConfirming
+          ? "Sending..."
+          : `Tip ${recipientLabel}`}
       </button>
 
       {sendError && (
-        <p style={{ color: "#ff6b6b", fontSize: 13, marginTop: 8 }}>
+        <p className="status-error" style={{ marginBottom: 0 }}>
           {sendError.message.split("\n")[0]}
         </p>
       )}
