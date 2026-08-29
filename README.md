@@ -1,5 +1,7 @@
 # Basecard
 
+[![ci](https://github.com/iamiskender/basecard/actions/workflows/tests.yml/badge.svg)](https://github.com/iamiskender/basecard/actions/workflows/tests.yml)
+
 Support any Base builder by their Basename. No signup, no custody, one transaction.
 
 Type a Basename, land on that builder's page, send them ETH with an optional message. The tip goes straight to their wallet in the same call. Basecard never holds a balance.
